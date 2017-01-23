@@ -11,78 +11,28 @@
 Function Install-DockerBits()
 { 
   $Script:ErrorActionPreference='Stop';
-  #Get Docker Dependencies
-  Get-DockerDeps;
   
   If ($IsWindows) {
+    #Run WindowsUpdate
+    Ipmo PSWindowsUpdate;
+    Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -IgnoreUserInput -Verbose
+    
     #Enable Container Support
     Enable-WindowsOptionalFeature -Online -FeatureName containers -All -NoRestart|Out-Null;
     Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All -NoRestart|Out-Null;
-    If ($(Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All).RestartNeeded) {
-      Restart-Computer -Force -Verbose -Confirm
-    } else {Write-Host  'This computer is ready to run Containers!'  -F Green -B Black}
+    
+    #Get Docker Dependencies
+    Get-DockerDeps
     
     #Install docker bits
-    If (get-command 'docker' -ea ignore) {
-      docker version |Out-Host;
-      Write-Host 'Existing Docker installation detected!  It is recommended that you uninstall it before you proceed' -F Red -B Black;
-      If ($ConfirmPreference -ne 'None') {$confirmation = Read-Host "Are you Sure You Want To Proceed?  [Y] Yes  [N] No";
-        If ($confirmation -ne 'y') {Write-Host 'Exiting…' -F Green -B Black; Throw 'installation cancelled by user input.'}
-      } else {Throw 'installation cancelled because existing docker installation found  Please remove and then re-run this script.'}
-    }
-    New-Item -ItemType Directory -Name docker -Path $env:ProgramFiles -Force|Out-Null;
-    $DockerPath=$env:ProgramFiles+'\docker'
-    $OldPath=[Environment]::GetEnvironmentVariable('PATH','Machine')
-    If ($DockerPath -cnotin $OldPath.split(';')) {
-      $env:path+=(';'+$DockerPath);
-      $NewPath=$OldPath+';'+$DockerPath;
-      [Environment]::SetEnvironmentVariable('PATH', $NewPath, 'Machine' );
-    }
-    If (get-command docker.exe -ea SilentlyContinue) {docker.exe version;}
-    $tmpDocker = [System.IO.Path]::GetTempFileName();
-    Remove-Item $tmpDocker; New-Item -Path $tmpDocker -ItemType Directory|Out-Null;
-    'docker.exe','dockerd.exe','docker-proxy.exe'|ForEach-Object{
-      Invoke-WebRequest https://master.dockerproject.org/windows/amd64/$_ -UseBasicParsing -OutFile $tmpDocker\$_;
-    }
-    Invoke-WebRequest https://dl.bintray.com/docker-compose/master/docker-compose-Windows-x86_64.exe `
-      -UseBasicParsing -OutFile $tmpDocker\docker-compose.exe;
-    'docker.exe','dockerd.exe','docker-proxy.exe','docker-compose.exe'|ForEach-Object{
-      Write-Host $_;
-      $newFileHash=(Get-FileHash $tmpDocker\$_ -ea Stop).Hash;
-      $oldFileHash= (Get-FileHash $DockerPath\$_ -ea SilentlyContinue).Hash;
-      if ($newFileHash -ne $oldFileHash) {
-        write-host '  -update available';
-        $NewBuildAvailable=$true;
-        write-host ('     newFileHash: '+$newfileHash);
-        .$tmpDocker\$_ --version;
-        write-host ('     oldFileHash: '+$oldFileHash);
-        If (test-path $DockerPath\$_) {.$DockerPath\$_ --version}
-      } else {write-host '  -already up to date'}
-    }
-    If ($NewBuildAvailable) {
-      If (Get-Service -Name docker -ea SilentlyContinue) {
-        Stop-Service docker  -ea SilentlyContinue;
-        dockerd --unregister-service;
-      }
-      Copy-Item $TmpDocker\* $DockerPath -Force -Verbose;
-      If ($ConfirmPreference -ne 'None'){
-        $netconfirmation = Read-Host 'Would you like your Docker service to be accessible from other computers? [Y] Yes  [N] No';
-      }
-      If ($netconfirmation -eq 'n') {
-        dockerd --register-service
-      } else {
-        Write-Host ' Open firewall port 2375 for Docker daemon' -F Green -B Black;
-        If (netsh advfirewall firewall query rule name="docker engine") {netsh advfirewall firewall delete rule name="docker engine"}
-        Write-Host 'Setting Docker API port to default value of TCP localport=2375'  -F Green -B Black;
-        netsh advfirewall firewall add rule name="docker engine" dir=in action=allow protocol=TCP localport=2375
-        # Configure Docker daemon to listen on both pipe and TCP
-        dockerd -H npipe:// -H 0.0.0.0:2375 --register-service;
-      }
-    }
-    Remove-Item $TmpDocker -Recurse -Force;
-    Start-Service docker -ea Stop -Verbose;
-    Get-Content -Path $env:ProgramData\docker\panic.log;
-    docker.exe version;
+    Import-Module -Name DockerMsftProvider -Force
+    Import-Packageprovider -Name DockerMsftProvider -Force
+    Get-PackageSource -ProviderName DockerMsftProvider
+    Install-Package -Name docker -ProviderName DockerMsftProvider -Update -Verbose
+    If ($(Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All).RestartNeeded) {
+      Write-Host  'This computer requires a reboot...' 
+      Restart-Computer -Force -Verbose 
+    } else {Write-Host  'This computer is ready to run Containers!'  -F Green -B Black}
     
     #Install Base Images
     Update-MatchingBaseImage -image 'microsoft/nanoserver','microsoft/windowsservercore','brycem/win10build';
@@ -242,146 +192,140 @@ Function Get-DockerDeps (){
     #List of Powershell Package Providers to ensure are present
     [Array]$Providers=@{'Name'='NuGet';'MinimumVersion'='2.8.5.207'},
                       @{'Name'='Chocolatey';'MinimumVersion'='2.8.5.130'},
-                      @{'Name'='GitHubProvider';'PackageName'='GitHub';'MinimumVersion'='0.5.0.0';'WarningAction'='Ignore'}
+                      @{'Name'='GitHubProvider';'PackageName'='GitHub';'MinimumVersion'='0.5.0.0';'WarningAction'='Ignore'},
+                      @{'Name'='DockerMsftProvider';'PackageName'='DockerMsftProvider';'MinimumVersion'='1.0.0.1';'WarningAction'='Ignore'}
                   
-    #List of Powershell Packages to ensure are present
+    #List of Chocolatey Packages to ensure are present
    [Array]$Packages=@{'Name'='jdk8';'ProviderName'='chocolatey';'InstallUpdate'=$true;'IncludeWindowsInstaller'=$true},
                     @{'Name'='Git';'MinimumVersion'='2.10.0';'ProviderName'='chocolatey';'InstallUpdate'=$true;'IncludeWindowsInstaller'=$true},
                     @{'Name'='microsoft-build-tools';'ProviderName'='chocolatey';'InstallUpdate'=$true;'IncludeWindowsInstaller'=$true},
                     @{'Name'='cmake';'ProviderName'='chocolatey';'InstallUpdate'=$true;'IncludeWindowsInstaller'=$true},
                     @{'Name'='vscode-powershell';'ProviderName'='chocolatey';'IncludeWindowsInstaller'=$true},
                     @{'Name'='notepad2';'ProviderName'='chocolatey';'IncludeWindowsInstaller'=$true}
-} else {
-   [Array]$Providers=@{'Name'='NuGet';'MinimumVersion'='2.8.5.207'},
-                      @{'Name'='GitHubProvider';'PackageName'='GitHub';'MinimumVersion'='0.5.0.0';'WarningAction'='Ignore'}
-   
-   #List of Powershell Packages to ensure are present
-   [Array]$Packages=@{'Name'='jdk8';'ProviderName'='chocolatey';'InstallUpdate'=$true;'IncludeWindowsInstaller'=$true},
-                    @{'Name'='Git';'MinimumVersion'='2.10.0';'ProviderName'='chocolatey';'InstallUpdate'=$true;'IncludeWindowsInstaller'=$true}             
-}
+                    
    #List of Powershell Repositores to ensure are present
-   [Array]$PsRepos=  @{'Name'='PSGallery';'InstallationPolicy'='Trusted';'SourceLocation'='https://www.powershellgallery.com/api/v2/';'Confirm:$false'=''},
-                     @{'Name'='DockerPS-Dev';'InstallationPolicy'='Trusted';'SourceLocation'='https://ci.appveyor.com/nuget/docker-powershell-dev';'Confirm:$false'=''},
-                     @{'Name'='DockerPS-Release';'InstallationPolicy'='Trusted';'SourceLocation'='https://ci.appveyor.com/nuget/docker-powershell-release';'Confirm:$false'=''}
+   [Array]$PsRepos=  @{'Name'='PSGallery';'InstallationPolicy'='Trusted';'SourceLocation'='https://www.powershellgallery.com/api/v2/';'Confirm:$false'=''}
 
    #List of Powershell Modules to ensure are present and up to date
-   [Array]$PsModules=@{'Name'='Docker';'Repository'='DockerPS-Dev';'InstallUpdate'=$true},
-                     @{'Name'='Pester';'Repository'='PSGallery';'InstallUpdate'=$true}
+   [Array]$PsModules=@{'Name'='Pester';'Repository'='PSGallery';'InstallUpdate'=$true},
+                     @{'Name'='PSWindowsUpdate';'Repository'='PSGallery';'InstallUpdate'=$true},
+                     @{'Name'='DockerMsftProvider';'Repository'='PSGallery';'InstallUpdate'=$true}
 
-  $Script:ConfirmPreference='None'
-  #Install Requested PS Repos
-  $PsRepos|ForEach-Object -Process `
-  {
-    #Find out if the desired Repo is registered
-    $params=@{}  #Trimming nonexistant parameters
-    $_.GetEnumerator()|? Value -ne 'ErrorAction'|foreach `
-    {
-      If ((gcm Register-PSRepository | select Parameters -ExpandProp Parameters).Keys.Contains(($_.Name -split ':')[0]))
+      $Script:ConfirmPreference='None'
+      #Install Requested PS Repos
+      $PsRepos|ForEach-Object -Process `
       {
-        $params+=@{$_.Name=$_.Value}
-      }
-    }
-    If (-not(Get-PSRepository -Name $_.Name -EA Ignore))
-    {
-      Register-PSRepository @params -ErrorAction Stop
-    }
-    If (-not(Get-PSRepository -Name $_.Name -EA Stop )) {
-      Throw "Unable to install "+$_.Name
-    } else {Set-PSRepository @params -EA Ignore}
-  }
-
-  #Install Requested PS Package Providers
-  $Providers|ForEach-Object -Process `
-  {
-    #construct parameters for command
-    $GetParams=@{};$_.GetEnumerator()|? Value -ne 'ErrorAction'|foreach `
-    {
-      If ((gcm Get-PackageProvider | select Parameters -ExpandProp Parameters).Keys.Contains(($_.Name -split ':')[0]))
-      { 
-        $GetParams+=@{$_.Name=$_.Value}
-      }
-    }
-    If (-not(Get-PackageProvider @GetParams -ErrorAction Ignore))
-    {
-      $InstallParams=@{}
-      $_.GetEnumerator()|? Value -ne 'ErrorAction'|foreach `
-      {
-        If ((gcm Install-PackageProvider | select Parameters -ExpandProp Parameters).Keys.Contains(($_.Name -split ':')[0]))
+        #Find out if the desired Repo is registered
+        $params=@{}  #Trimming nonexistant parameters
+        $_.GetEnumerator()|? Value -ne 'ErrorAction'|foreach `
         {
-          $InstallParams+=@{$_.Name=$_.Value}
-        }
-      }
-      Install-PackageProvider @InstallParams -ErrorAction Stop -Force
-      If ($_.PackageName) #GitHubHack for mismatch of PackageName and ProviderName
-      {
-        $GetParams.Name=$_.PackageName
-        $InstallParams.Name=$_.PackageName  
-        $ImportParams=@{}
-        $InstallParams.GetEnumerator()|? Value -ne 'WarningAction'|foreach `
-        {
-          If ((gcm Import-PackageProvider | select Parameters -ExpandProp Parameters).Keys.Contains(($_.Name -split ':')[0]))
+          If ((gcm Register-PSRepository | select Parameters -ExpandProp Parameters).Keys.Contains(($_.Name -split ':')[0]))
           {
-            $ImportParams+=@{$_.Name=$_.Value}
+            $params+=@{$_.Name=$_.Value}
           }
         }
-        Import-PackageProvider @ImportParams -ErrorAction Stop
-      }
-    }
-    If ($_.Name -eq 'Chocolatey') {choco feature enable -n=allowGlobalConfirmation}
-    If (-not(Get-PackageProvider @GetParams -ErrorAction Stop)) {Throw "Unable to install "+$_.Name}
-  }
-  
-  #Install Requested PS Modules
-  $PsModules|ForEach-Object -Process `
-  {
-    $params=@{}
-    $_.GetEnumerator()|? Value -ne 'ErrorAction'|foreach `
-    {
-      If ((gcm Get-InstalledModule | select Parameters -ExpandProp Parameters).Keys.Contains(($_.Name -split ':')[0]))
-      {
-        $params+=@{$_.Name=$_.Value}
-      }
-    }
-    If (-not(Get-InstalledModule @params -ErrorAction Ignore)) 
-    {
-      $FindParams=@{}
-      $_.GetEnumerator()|? Value -ne 'ErrorAction'|foreach `
-      {
-        If ((gcm Find-Package | select Parameters -ExpandProp Parameters).Keys.Contains(($_.Name -split ':')[0]))
+        If (-not(Get-PSRepository -Name $_.Name -EA Ignore))
         {
-          $FindParams+=@{$_.Name=$_.Value}
+          Register-PSRepository @params -ErrorAction Stop
         }
+        If (-not(Get-PSRepository -Name $_.Name -EA Stop )) {
+          Throw "Unable to install "+$_.Name
+        } else {Set-PSRepository @params -EA Ignore}
       }
-      Find-Module @FindParams -ErrorAction Stop|Install-Module -ErrorAction Stop -Force -SkipPublisherCheck 
-    }
-    If (-not(Get-InstalledModule @params -ErrorAction Stop)) {Throw "Unable to install "+$_.Name}
-  }
 
-  #Install Requested PS Packages
-  $Packages|ForEach-Object -Process `
-  {
-    #construct parameters for command
-    $GetParams=@{};$_.GetEnumerator()|? Value -ne 'ErrorAction'|foreach `
-    {
-      If ((gcm Get-Package | select Parameters -ExpandProp Parameters).Keys.Contains(($_.Name -split ':')[0]))
+      #Install Requested PS Package Providers
+      $Providers|ForEach-Object -Process `
       {
-        $GetParams+=@{$_.Name=$_.Value}
-        write-output $GetParams
-      }
-    }
-    If (-not(Get-Package @GetParams -ErrorAction Ignore))
-    {
-      $FindParams=@{}
-      $_.GetEnumerator()|? Value -ne 'ErrorAction'|foreach `
-      {
-        If ((gcm Find-Package | select Parameters -ExpandProp Parameters).Keys.Contains(($_.Name -split ':')[0]))
+        #construct parameters for command
+        $GetParams=@{};$_.GetEnumerator()|? Value -ne 'ErrorAction'|foreach `
         {
-          $FindParams+=@{$_.Name=$_.Value}
-          write-output $FindParams
+          If ((gcm Get-PackageProvider | select Parameters -ExpandProp Parameters).Keys.Contains(($_.Name -split ':')[0]))
+          { 
+            $GetParams+=@{$_.Name=$_.Value}
+          }
         }
+        If (-not(Get-PackageProvider @GetParams -ErrorAction Ignore))
+        {
+          $InstallParams=@{}
+          $_.GetEnumerator()|? Value -ne 'ErrorAction'|foreach `
+          {
+            If ((gcm Install-PackageProvider | select Parameters -ExpandProp Parameters).Keys.Contains(($_.Name -split ':')[0]))
+            {
+              $InstallParams+=@{$_.Name=$_.Value}
+            }
+          }
+          Install-PackageProvider @InstallParams -ErrorAction Stop -Force
+          If ($_.PackageName) #GitHubHack for mismatch of PackageName and ProviderName
+          {
+            $GetParams.Name=$_.PackageName
+            $InstallParams.Name=$_.PackageName  
+            $ImportParams=@{}
+            $InstallParams.GetEnumerator()|? Value -ne 'WarningAction'|foreach `
+            {
+              If ((gcm Import-PackageProvider | select Parameters -ExpandProp Parameters).Keys.Contains(($_.Name -split ':')[0]))
+              {
+                $ImportParams+=@{$_.Name=$_.Value}
+              }
+            }
+            Import-PackageProvider @ImportParams -ErrorAction Stop
+          }
+        }
+        If ($_.Name -eq 'Chocolatey') {choco feature enable -n=allowGlobalConfirmation}
+        If (-not(Get-PackageProvider @GetParams -ErrorAction Stop)) {Throw "Unable to install "+$_.Name}
       }
-      Find-Package @FindParams -ErrorAction Stop | Install-Package -ErrorAction Stop -Force
-    }
-    If (-not(Get-Package @GetParams -ErrorAction Stop)) {Throw "Unable to install "+$_.Name}
-  }
+      
+      #Install Requested PS Modules
+      $PsModules|ForEach-Object -Process `
+      {
+        $params=@{}
+        $_.GetEnumerator()|? Value -ne 'ErrorAction'|foreach `
+        {
+          If ((gcm Get-InstalledModule | select Parameters -ExpandProp Parameters).Keys.Contains(($_.Name -split ':')[0]))
+          {
+            $params+=@{$_.Name=$_.Value}
+          }
+        }
+        If (-not(Get-InstalledModule @params -ErrorAction Ignore)) 
+        {
+          $FindParams=@{}
+          $_.GetEnumerator()|? Value -ne 'ErrorAction'|foreach `
+          {
+            If ((gcm Find-Package | select Parameters -ExpandProp Parameters).Keys.Contains(($_.Name -split ':')[0]))
+            {
+              $FindParams+=@{$_.Name=$_.Value}
+            }
+          }
+          Find-Module @FindParams -ErrorAction Stop|Install-Module -ErrorAction Stop -Force -SkipPublisherCheck 
+        }
+        If (-not(Get-InstalledModule @params -ErrorAction Stop)) {Throw "Unable to install "+$_.Name}
+      }
+
+      #Install Requested PS Packages
+      $Packages|ForEach-Object -Process `
+      {
+        #construct parameters for command
+        $GetParams=@{};$_.GetEnumerator()|? Value -ne 'ErrorAction'|foreach `
+        {
+          If ((gcm Get-Package | select Parameters -ExpandProp Parameters).Keys.Contains(($_.Name -split ':')[0]))
+          {
+            $GetParams+=@{$_.Name=$_.Value}
+            write-output $GetParams
+          }
+        }
+        If (-not(Get-Package @GetParams -ErrorAction Ignore))
+        {
+          $FindParams=@{}
+          $_.GetEnumerator()|? Value -ne 'ErrorAction'|foreach `
+          {
+            If ((gcm Find-Package | select Parameters -ExpandProp Parameters).Keys.Contains(($_.Name -split ':')[0]))
+            {
+              $FindParams+=@{$_.Name=$_.Value}
+              write-output $FindParams
+            }
+          }
+          Find-Package @FindParams -ErrorAction Stop | Install-Package -ErrorAction Stop -Force
+        }
+        If (-not(Get-Package @GetParams -ErrorAction Stop)) {Throw "Unable to install "+$_.Name}
+      }
+  } else {write-warning "Get-DockerDeps support for non-Windows platform is NYI"}
 }
