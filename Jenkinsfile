@@ -1,4 +1,4 @@
-node {
+node('WinDocker') {
   // JenkinsFile Groovy-based PipeLine workflow for Jenkins-CI
   // Documentation:  https://jenkins.io/doc/pipeline/
   
