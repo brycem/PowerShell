@@ -2,9 +2,6 @@ node('WinDocker') {
     // JenkinsFile Groovy-based PipeLine workflow for Jenkins-CI
     // Documentation:  https://jenkins.io/doc/pipeline/
 
-	stage('Checkout'){
-		checkout scm
-    }
     stage('SpinUpContainer'){
         bat 'docker create -i --name %BUILD_ID% -h PoshCore microsoft/windowsservercore:10.0.14300.1030 cmd'
         bat 'docker cp "C:\\Program Files\\PowerShell" ${env.BUILD_ID}:"C:\\PowerShell"'
