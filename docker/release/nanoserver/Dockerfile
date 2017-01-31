@@ -15,6 +15,7 @@ SHELL ["C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe","-comman
 WORKDIR /
 
 # Install PowerShell package and clean up
+
 ADD $POWERSHELL_ZIP /PowerShell-win10-win2k16-x64.zip
 RUN [System.IO.FileInfo]$ZipFile = Get-Item -Path ./powershell-win10-win2k16-x64.zip;`
     [String]$ZipHash = (Get-FileHash  -Path $ZipFile -Algorithm SHA256 | select -ExpandProperty Hash);`

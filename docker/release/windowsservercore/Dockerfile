@@ -1,4 +1,4 @@
-# escape=`
+ escape=`
 FROM microsoft/windowsservercore
 LABEL Readme.md="https://github.com/PowerShell/PowerShell/blob/master/docker/README.md",`
       Description="This Dockerfile will install the latest release of PS."
@@ -14,6 +14,7 @@ SHELL ["C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe","-comman
     "$BldVer = $('FullBuildString:  '+ $WinVer.BuildLabEx); Write-Output -InputObject $OsVer,$BldVer; "]
 
 # Install PowerShell package and clean up
+
 ADD $POWERSHELL_MSI /PowerShell-win10-win2k16-x64.msi
 RUN [System.IO.FileInfo]$MsiFile = Get-Item -Path ./PowerShell-win10-win2k16-x64.msi;`
     [String]$MsiHash=(Get-FileHash -Path $MSiFile -Algorithm SHA256 | select -ExpandProperty Hash);`
