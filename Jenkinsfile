@@ -3,7 +3,7 @@ node('WinDocker') {
     // Documentation:  https://jenkins.io/doc/pipeline/
 
     stage('SpinUpContainer'){
-        bat 'docker create -i --name %BUILD_ID% -h PoshCore microsoft/windowsservercore:latest cmd'
+        bat 'docker create -i --name %BUILD_ID% -h PoshCore brycem/windowsservercore:latest echo hello world;exit'
         bat 'docker cp "C:\\Program Files\\PowerShell" ${env.BUILD_ID}:"C:\\PowerShell"'
         // bat 'docker cp "${env.WORKSPACE}\\Tools" ${env.BUILD_ID}:"C:\\PowerShell\\Tools"'
 	// bat 'docker cp "${env.WORKSPACE}\\Test" ${env.BUILD_ID}:"C:\\PowerShell\\Test"'
