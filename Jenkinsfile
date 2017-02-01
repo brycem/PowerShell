@@ -16,7 +16,7 @@ node('WinDocker') {
 	stage('Archive'){
 		archive 'C:\\PowerShell'
 		bat 'docker rm %BUILD_ID%'
-		mail 
+		mail bcc: '', body: '$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS:  Check console output at $BUILD_URL to view the results.', cc: '', from: '', replyTo: '', subject: '$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS!', to: 'brycem@microsoft.com'
     }
 }
 node('Lability') {
