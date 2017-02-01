@@ -1,17 +1,18 @@
 node('WinDocker') {
     // JenkinsFile Groovy-based PipeLine workflow for Jenkins-CI
     // Documentation:  https://jenkins.io/doc/pipeline/
-
+    
+    stage('Checkout'){
+		// Can't sync PowerShell 
+		dir('C:\\PowerShell') {
+            scm checkout 
+        }
+	}
     stage('SpinUpContainer'){
         bat 'set'
-        bat 'docker create -i --name %BUILD_ID% -h PoshCore brycem/windowsservercore:latest echo hello world;exit'
-        // bat 'docker cp "${env.WORKSPACE}\\Tools" ${env.BUILD_ID}:"C:\\PowerShell\\Tools"'
-        // bat 'docker cp "C:\\Program Files\\PowerShell" ${env.BUILD_ID}:"C:\\PowerShell"'
-        // bat 'docker cp "${env.WORKSPACE}\\Test" ${env.BUILD_ID}:"C:\\PowerShell\\Test"'
+        bat 'docker create -i --name %BUILD_ID% -h PoshCore -v c:\\PowerShell:c:\\PowerShell brycem/windowsservercore:latest echo hello world;exit'
+        bat 'docker cp "%WORKSPACE%\\Tools" %BUILD_ID%:"C:\\PowerShell\\Tools"'
         bat 'docker start %BUILD_ID%'
-    }
-	stage('UpdateTools'){
-		//bat 'docker exec %BUILD_ID% powershell.exe -c "C:\\PowerShell\\Tools\\Jenkins.ps1 -UpdateTools"'
     }
 	stage('Test'){
 		//bat 'docker exec %BUILD_ID% powershell.exe -c "C:\\PowerShell\\Tools\\Jenkins.ps1 -Test"'
@@ -20,7 +21,16 @@ node('WinDocker') {
         bat 'docker stop %BUILD_ID%'
     }
 	stage('Archive'){
-		// archive 'PowerShell/**'
+		archive 'C:\\PowerShell'
 		bat 'docker rm %BUILD_ID%'
+		mail bcc: '', body: '', cc: '', from: '', replyTo: '', subject: '', to: ''
+    }
+}
+node('Lability') {
+    stage('Checkout'){
+        // Can't sync PowerShell 
+        dir('C:\\PowerShell') {
+            scm checkout 
+        }
     }
 }
