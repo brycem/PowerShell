@@ -4,8 +4,7 @@ node('WinDocker') {
     
     stage('SpinUpContainer'){
         bat 'set'
-        bat 'docker create -i --name %BUILD_ID% -h PoshCore -v c:\\PowerShell:c:\\PowerShell brycem/windowsservercore:latest echo hello world;exit'
-        bat 'docker cp "%WORKSPACE%\\Tools" %BUILD_ID%:"C:\\PowerShell\\Tools"'
+        bat 'docker create -i --name %BUILD_ID% -h PoshCore -v ./Tools:c:\\PowerShell\\Tools brycem/windowsservercore:latest echo hello world;exit'
         bat 'docker start %BUILD_ID%'
     }
 	stage('Test'){
