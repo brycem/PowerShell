@@ -12,7 +12,7 @@ node('WinDocker') {
     }
     stage('StopContainer'){
         bat 'docker stop %BUILD_ID%'
-        bat 'echo artifact>%WORKSPACE%\docker.log'
+        bat 'echo artifact>%WORKSPACE%\\docker.log'
     }
 	stage('Archive'){
 		archive '$WORKSPACE'
