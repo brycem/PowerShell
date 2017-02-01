@@ -4,7 +4,7 @@ node('WinDocker') {
     
     stage('SpinUpContainer'){
         bat 'set'
-        bat 'docker create -i --name %BUILD_ID% -h PoshCore -v C:\\Jenkins\\Tools:c:\\PowerShell\\Tools brycem/windowsservercore:latest echo hello world;exit'
+        bat 'docker create -i --name %BUILD_ID% -h PoshCore -v C:\\Jenkins\\Tools:c:\\PowerShell\\Tools %WORKSPACE%:c:\\PowerShell brycem/windowsservercore:latest echo hello world;exit'
         bat 'docker start %BUILD_ID%'
     }
 	stage('Test'){
@@ -12,11 +12,12 @@ node('WinDocker') {
     }
     stage('StopContainer'){
         bat 'docker stop %BUILD_ID%'
+        bat 'echo artifact>%WORKSPACE%\docker.log'
     }
 	stage('Archive'){
-		archive 'C:\\PowerShell'
+		archive '$WORKSPACE'
 		bat 'docker rm %BUILD_ID%'
-		mail bcc: '', body: '$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS:  Check console output at $BUILD_URL to view the results.', cc: '', from: '', replyTo: '', subject: '$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS!', to: 'brycem@microsoft.com'
+		//mail bcc: '', body: '$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS:  Check console output at $BUILD_URL to view the results.', cc: '', from: '', replyTo: '', subject: '$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS!', to: 'brycem@microsoft.com'
     }
 }
 node('Lability') {
