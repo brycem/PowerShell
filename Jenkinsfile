@@ -16,7 +16,7 @@ node('WinDocker') {
 	stage('Archive'){
 		archive 'C:\\PowerShell'
 		bat 'docker rm %BUILD_ID%'
-		mail bcc: '', body: '', cc: '', from: '', replyTo: '', subject: '', to: ''
+		mail 
     }
 }
 node('Lability') {
