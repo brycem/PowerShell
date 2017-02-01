@@ -5,7 +5,7 @@ node('WinDocker') {
     stage('Checkout'){
 		// Can't sync PowerShell 
 		dir('C:\\PowerShell') {
-            scm checkout 
+            bat 'set'
         }
 	}
     stage('SpinUpContainer'){
