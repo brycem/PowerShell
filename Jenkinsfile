@@ -2,12 +2,6 @@ node('WinDocker') {
     // JenkinsFile Groovy-based PipeLine workflow for Jenkins-CI
     // Documentation:  https://jenkins.io/doc/pipeline/
     
-    stage('Checkout'){
-		// Can't sync PowerShell 
-		dir('C:\\PowerShell') {
-            bat 'set'
-        }
-	}
     stage('SpinUpContainer'){
         bat 'set'
         bat 'docker create -i --name %BUILD_ID% -h PoshCore -v c:\\PowerShell:c:\\PowerShell brycem/windowsservercore:latest echo hello world;exit'
@@ -28,9 +22,6 @@ node('WinDocker') {
 }
 node('Lability') {
     stage('Checkout'){
-        // Can't sync PowerShell 
-        dir('C:\\PowerShell') {
-            scm checkout 
-        }
+        bat 'set'
     }
 }
