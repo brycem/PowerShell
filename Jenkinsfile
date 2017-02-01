@@ -8,13 +8,11 @@ node('WinDocker') {
         bat 'docker start %BUILD_ID%'
     }
 	stage('Test'){
-		//bat 'docker exec %BUILD_ID% powershell.exe -c "C:\\PowerShell\\Tools\\Jenkins.ps1 -Test"'
-    }
-    stage('StopContainer'){
-        bat 'docker stop %BUILD_ID%'
-        bat 'echo artifact>%WORKSPACE%\\docker.log'
+		bat 'docker exec %BUILD_ID% powershell.exe -c "C:\\PowerShell\\Tools\\Jenkins.ps1 -Test"'
+		bat 'echo artifact>%WORKSPACE%\\docker.log'
     }
 	stage('Archive'){
+		bat 'docker stop %BUILD_ID%'
 		archiveArtifacts '*.log'
 		bat 'docker rm %BUILD_ID%'
 		//mail bcc: '', body: '$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS:  Check console output at $BUILD_URL to view the results.', cc: '', from: '', replyTo: '', subject: '$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS!', to: 'brycem@microsoft.com'
@@ -23,5 +21,7 @@ node('WinDocker') {
 node('Lability') {
     stage('Checkout'){
         bat 'set'
+        bat 'echo artifact>%WORKSPACE%\\docker.log'
+        archiveArtifacts '*.log'
     }
 }
